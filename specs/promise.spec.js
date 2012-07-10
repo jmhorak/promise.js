@@ -5,10 +5,9 @@
  * Testing for an async Promise module
  */
 
-/*globals jasmine expect describe beforeEach it runs waitsFor*/
+/*globals jasmine expect describe beforeEach it runs waitsFor Promise*/
 
-var Promise = require(__dirname + '/../src/node_modules/modPromise').Promise,
-    slice = Array.prototype.slice;
+var slice = Array.prototype.slice;
 
 describe('Basic Promise features', function() {
 
