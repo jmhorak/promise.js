@@ -1,0 +1,9 @@
+/**
+ * Promise.js
+ * Author: Jeff Horak
+ * Date: 7/9/12
+ */
+var Promise=function(){function d(){this.state="resolved";"function"===typeof this.resolveCallback&&this.resolveCallback.apply(null,this._arguments)}function c(){this.state="rejected";"function"===typeof this.failCallback&&this.failCallback.apply(null,this._arguments)}var b=function(){this._arguments=null;this.state="unfulfilled";this.failCallback=this.resolveCallback=null};b.prototype.then=function(b,a,e){this.resolveCallback=b;this.failCallback=a;this.progressCallback=e;"resolved"===this.state?
+d.call(this):"rejected"===this.state&&c.call(this);return this};b.prototype.resolve=function(){if("unfulfilled"!==this.state)throw Error("Cannot resolve a promise unless it is unfulfilled");this._arguments=Array.prototype.slice.call(arguments,0);d.call(this)};b.prototype.reject=function(){if("unfulfilled"!==this.state)throw Error("Cannot reject a promise unless it is unfulfilled");this._arguments=Array.prototype.slice.call(arguments,0);c.call(this)};b.prototype.updateProgress=function(){if("unfulfilled"!==
+this.state)throw Error("Cannot update progress of a promise unless it is unfulfilled");"function"===typeof this.progressCallback&&this.progressCallback.apply(null,arguments)};b.when=function(){var d=Array.prototype.slice,a=d.call(arguments,0),e=[],c=new b,f=null;a[0]&&"[object Array]"===Object.prototype.toString.call(a[0])&&(a=a[0]);c.then=function(c,g){function h(){for(var b=0,a=e.length,d=!1;b<a&&!d;b++)d="resolved"!==e[b].state;d||c.apply(null,f)}a.forEach(function(a){a instanceof b&&(a.resolve=
+function(){var a=e.indexOf(this),c=d.call(arguments,0);if(0>a)throw Error("Could not find promise");f[a]=c;b.prototype.resolve.apply(this,arguments)},a.then(h,g),e.push(a))});0===e.length?c():f=Array(e.length);return this};return c};return b}();"undefined"===typeof window&&(exports.Promise=Promise);
