@@ -1,32 +1,136 @@
 /**
- * Author: Jeff Horak
+ * Author: Jeff Horak (@jmhorak)
  * Date: 5/31/12
+ * MIT License
  *
  * Async Promise module
  */
 
 var Promise = (function() {
 
-   function _resolvePromise() {
-    // Move to resolved state
-    this.state = 'resolved';
+  var _resolved = 'resolved',
+      _rejected = 'rejected',
+      _unfulfilled = 'unfulfilled';
 
-    if (typeof this.resolveCallback === 'function') {
-      this.resolveCallback.apply(null, this._arguments);
-    }
-
-    // If no callback supplied, just eat the resolve
+  /**
+   * Determines if a given object is a function
+   *
+   * @param fn - Object in question
+   * @return {*} - True if instanceof a function, false otherwise
+   * @private
+   */
+  function _isAFunction(fn) {
+      return fn && fn instanceof Function;
   }
 
+  /**
+   * Executes all the registered callbacks in the given list
+   * @param list - List of registered callbacks
+   * @private
+   */
+  function _execCallbacks(list, args) {
+    var len = list.length,
+        fnArgs = args || this._arguments,
+        fn;
+
+    // Loop through all the defined resolve callbacks
+    while (len--) {
+      fn = list[len];
+      if (_isAFunction(fn)) {
+        fn.apply(null, fnArgs);
+      }
+    }
+  }
+
+  /**
+   * Reset all of the callback arrays
+   * @private
+   */
+  function _clearCallbacks() {
+    // Free any registered callbacks
+    this.resolveCallbacks = [];
+    this.rejectCallbacks = [];
+    this.progressCallbacks = [];
+  }
+
+  /**
+   * Resolve a promise
+   * @private
+   */
+  function _resolvePromise() {
+    // Move to resolved state
+    this.state = _resolved;
+
+    // Run all the defined resolve callbacks
+    _execCallbacks.call(this, this.resolveCallbacks);
+
+    // Clear all the callbacks - we don't want to re-invoke these if another listener is added
+    _clearCallbacks.call(this);
+  }
+
+  /**
+   * Reject a promise
+   * @private
+   */
   function _rejectPromise() {
     // Move to failed state
-    this.state = 'rejected';
+    this.state = _rejected;
 
-    if (typeof this.failCallback === 'function') {
-      this.failCallback.apply(null, this._arguments);
+    // Run all the defined reject callbacks
+    _execCallbacks.call(this, this.rejectCallbacks);
+
+    // Clear all the callbacks - we don't want to re-invoke these if another listener is added
+    _clearCallbacks.call(this);
+  }
+
+  /**
+   * Register a new resolve callback
+   * @param fn - The callback function to register
+   * @private
+   */
+  function _addResolveCallback(fn) {
+
+    // Ignore if not a function or this promise has already been rejected
+    if (_isAFunction(fn) && this.state !== _rejected) {
+
+      // Push onto resolve fn list
+      this.resolveCallbacks.push(fn);
+
+      if (this.state === 'resolved') {
+        // Already resolved, call the resolve callback
+        _resolvePromise.call(this);
+      }
     }
+  }
 
-    // If no callback supplied, just eat the failure
+  /**
+   * Register a new reject callback
+   * @param fn - The callback function to register
+   * @private
+   */
+  function _addRejectCallback(fn) {
+
+    // Ignore if not a function or this promise has already been resolved
+    if (_isAFunction(fn) && this.state !== _resolved) {
+      // Push onto reject fn list
+      this.rejectCallbacks.push(fn);
+
+      if (this.state === 'rejected') {
+        // Already rejected, call the reject callback
+        _rejectPromise.call(this);
+      }
+    }
+  }
+
+  /**
+   * Register a new progress callback
+   * @param fn
+   * @private
+   */
+  function _addProgressCallback(fn) {
+    if (_isAFunction(fn) && this.state === _unfulfilled) {
+      this.progressCallbacks.push(fn);
+    }
   }
 
   // Build the Promise class
@@ -37,9 +141,10 @@ var Promise = (function() {
    */
   var Promise = function() {
     this._arguments = null;
-    this.state = 'unfulfilled';
-    this.resolveCallback = null;
-    this.failCallback = null;
+    this.state = _unfulfilled;
+    this.resolveCallbacks = [];
+    this.rejectCallbacks = [];
+    this.progressCallbacks = [];
   };
 
   /**
@@ -47,22 +152,43 @@ var Promise = (function() {
    * @param resolveCallback {function} - Callback used when results are returned normally
    * @param failCallback {function} Optional - Callback used when the async operation has an error
    * @param progressCallback {function} Optional - Callback used to update progress of an async operation
+   * @return {*}
    */
   Promise.prototype.then = function(resolveCallback, failCallback, progressCallback) {
-    this.resolveCallback = resolveCallback;
-    this.failCallback = failCallback;
-    this.progressCallback = progressCallback;
 
-    if (this.state === 'resolved') {
-      // Already resolved, call the resolve callback
-      _resolvePromise.call(this);
-
-    } else if (this.state === 'rejected') {
-      // Already rejected, call the reject callback
-      _rejectPromise.call(this);
-    }
+    // Register callbacks
+    _addResolveCallback.call(this, resolveCallback);
+    _addRejectCallback.call(this, failCallback);
+    _addProgressCallback.call(this, progressCallback);
 
     return this;
+  };
+
+  /**
+   * Adds a single resolve callback
+   * @param resolveCallback
+   * @return {*}
+   */
+  Promise.prototype.whenDone = function(resolveCallback) {
+    return this.then(resolveCallback, null, null);
+  };
+
+  /**
+   * Adds a single reject callback
+   * @param failCallback
+   * @return {*}
+   */
+  Promise.prototype.ifFail = function(failCallback) {
+    return this.then(null, failCallback, null);
+  };
+
+  /**
+   * Adds a single progress callback
+   * @param progressCallback
+   * @return {*}
+   */
+  Promise.prototype.onUpdate = function(progressCallback) {
+    return this.then(null, null, progressCallback);
   };
 
   /**
@@ -70,9 +196,10 @@ var Promise = (function() {
    */
   Promise.prototype.resolve = function() {
 
-    if (this.state !== 'unfulfilled') {
+    if (this.state !== _unfulfilled) {
       throw new Error('Cannot resolve a promise unless it is unfulfilled');
     }
+    // Save the arguments, if new callbacks are registered they will be immediately invoked with these arguments
     this._arguments = Array.prototype.slice.call(arguments, 0);
 
     _resolvePromise.call(this);
@@ -83,9 +210,10 @@ var Promise = (function() {
    */
   Promise.prototype.reject = function() {
 
-    if (this.state !== 'unfulfilled') {
+    if (this.state !== _unfulfilled) {
       throw new Error('Cannot reject a promise unless it is unfulfilled');
     }
+    // Save the arguments, if new callbacks are registered they will be immediately invoked with these arguments
     this._arguments = Array.prototype.slice.call(arguments, 0);
 
     _rejectPromise.call(this);
@@ -96,15 +224,12 @@ var Promise = (function() {
    */
   Promise.prototype.updateProgress = function() {
 
-    if (this.state !== 'unfulfilled') {
+    if (this.state !== _unfulfilled) {
       throw new Error('Cannot update progress of a promise unless it is unfulfilled');
     }
 
-    if (typeof this.progressCallback === 'function') {
-      this.progressCallback.apply(null, arguments);
-    }
-
-    // If no callback supplied, just eat the progress update
+    // Send update to all defined progress callbacks
+    _execCallbacks.call(this, this.progressCallbacks, arguments);
   };
 
   /**

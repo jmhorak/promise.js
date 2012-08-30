@@ -58,6 +58,41 @@ describe('Basic Promise features', function() {
     });
   });
 
+  it('should resolve multiple callbacks', function() {
+    var spy2 = jasmine.createSpy(),
+        spy3 = jasmine.createSpy(),
+        notCalled2 = jasmine.createSpy(),
+        notCalled3 = jasmine.createSpy(),
+        param = 10;
+
+    runs(function() {
+      expect(promise.state).toEqual('unfulfilled');
+
+      promise.whenDone(spy).whenDone(spy2).whenDone(spy3);
+      promise.ifFail(notCalledSpy).ifFail(notCalled2).ifFail(notCalled3);
+
+      // Our async function - call resolve with a bunch of arguments
+      setTimeout(function() {
+        promise.resolve.call(promise, param);
+      }, 1);
+    });
+
+    waitsFor(function() {
+      return spy.wasCalled && spy2.wasCalled && spy3.wasCalled;
+    });
+
+    runs(function() {
+      expect(promise.state).toEqual('resolved');
+      expect(spy).toHaveBeenCalledWith(param);
+      expect(spy2).toHaveBeenCalledWith(param);
+      expect(spy3).toHaveBeenCalledWith(param);
+      expect(notCalledSpy).not.toHaveBeenCalled();
+      expect(notCalled2).not.toHaveBeenCalled();
+      expect(notCalled3).not.toHaveBeenCalled();
+    });
+
+  });
+
   it('should silently resolve if a resolve callback is not given', function() {
     var isReady = false;
 
@@ -123,6 +158,39 @@ describe('Basic Promise features', function() {
       for (; i < len; i++) {
         expect(args[i]).toEqual(passArgs[i]);
       }
+    });
+  });
+
+  it('should call reject on multiple callbacks', function() {
+    var spy2 = jasmine.createSpy(),
+        spy3 = jasmine.createSpy(),
+        notCalled2 = jasmine.createSpy(),
+        notCalled3 = jasmine.createSpy(),
+        param = 923874;
+
+    runs(function() {
+      expect(promise.state).toEqual('unfulfilled');
+
+      promise.then(notCalledSpy, spy).then(notCalled2, spy2).then(notCalled3, spy3);
+
+      // Our async function - call resolve with a bunch of arguments
+      setTimeout(function() {
+        promise.reject.call(promise, param);
+      }, 1);
+    });
+
+    waitsFor(function() {
+      return spy.wasCalled && spy2.wasCalled && spy3.wasCalled;
+    });
+
+    runs(function() {
+      expect(promise.state).toEqual('rejected');
+      expect(spy).toHaveBeenCalledWith(param);
+      expect(spy2).toHaveBeenCalledWith(param);
+      expect(spy3).toHaveBeenCalledWith(param);
+      expect(notCalledSpy).not.toHaveBeenCalled();
+      expect(notCalled2).not.toHaveBeenCalled();
+      expect(notCalled3).not.toHaveBeenCalled();
     });
   });
 
@@ -479,5 +547,39 @@ describe('Chaining promises using when', function() {
 
     expect(spy).toHaveBeenCalled();
     expect(notCalledSpy).not.toHaveBeenCalled();
+  });
+
+  it('should allow multiple resolve callbacks', function() {
+    var spy2 = jasmine.createSpy();
+
+    runs(function() {
+      Promise.when(promise1, promise2, promise3).then(spy, notCalledSpy).whenDone(spy2);
+
+      setTimeout(function() {
+        // Resolve promise 1
+        promise1.resolve();
+      },1);
+
+      setTimeout(function() {
+        // Resolve promise 2
+        promise2.resolve();
+      }, 1);
+
+      setTimeout(function() {
+        // Resolve promise 3
+        promise3.resolve();
+      }, 1);
+
+    });
+
+    waitsFor(function() {
+      return (spy.wasCalled && spy2.wasCalled) || notCalledSpy.wasCalled;
+    });
+
+    runs(function() {
+      expect(spy).toHaveBeenCalled();
+      expect(spy2).toHaveBeenCalled();
+      expect(notCalledSpy).not.toHaveBeenCalled();
+    });
   });
 });
